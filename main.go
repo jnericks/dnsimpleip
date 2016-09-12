@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 
@@ -80,7 +81,7 @@ func main() {
 
 	handleError := func(err error) {
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			os.Exit(1)
 		}
 	}
@@ -94,5 +95,5 @@ func main() {
 	err = updateRecord(opts, ip)
 	handleError(err)
 
-	fmt.Println("DNSimple record updated successfully")
+	log.Println("DNSimple record updated successfully")
 }
