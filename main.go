@@ -11,11 +11,6 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
-const (
-	jsonip   = "http://ipv4.jsonip.com/"
-	dnsimple = "https://api.dnsimple.com/v1/"
-)
-
 type options struct {
 	Email    string `long:"email"  description:"DNSimple Email"         required:"true"`
 	ApiToken string `long:"token"  description:"DNSimple v1 Api Token"  required:"true"`
@@ -24,7 +19,7 @@ type options struct {
 }
 
 func getIP() (string, error) {
-	resp, err := http.Get(jsonip)
+	resp, err := http.Get("http://ipv4.jsonip.com/")
 	if err != nil {
 		return "", nil
 	}
