@@ -2,93 +2,110 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-
-	flags "github.com/jessevdk/go-flags"
+	"strings"
 )
 
 type options struct {
-	Email    string `long:"email"  description:"DNSimple Email"         required:"true"`
-	ApiToken string `long:"token"  description:"DNSimple v1 Api Token"  required:"true"`
-	Domain   string `long:"domain" description:"DNSimple Domain Name"   required:"true"`
-	RecordID int    `long:"record" description:"DNSimple DNS Record ID" required:"true"`
+	token, account, zone, record string
 }
 
-func getIP() (string, error) {
-	resp, err := http.Get("http://ipv4.jsonip.com/")
-	if err != nil {
-		return "", nil
-	}
-	defer resp.Body.Close()
+func parseOptions() (options, error) {
+	token := flag.String("token", "", "The API v2 OAuth token")
+	account := flag.String("account", "", "Replace with your account ID")
+	zone := flag.String("zone", "", "The zone ID is the name of the zone (or domain)")
+	record := flag.String("record", "", "Replace with the Record ID")
 
-	var j struct {
-		IP string `json:"ip"`
+	flag.Parse()
+
+	if *token == "" ||
+		*account == "" ||
+		*zone == "" ||
+		*record == "" {
+		return options{}, fmt.Errorf("not all options passed in")
 	}
 
-	json.NewDecoder(resp.Body).Decode(&j)
-	return j.IP, nil
+	return options{
+		token:   *token,
+		account: *account,
+		zone:    *zone,
+		record:  *record,
+	}, nil
 }
 
-/*
-curl  -H 'X-DNSimple-Token: <email>:<token>' \
-      -H 'Accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -X PUT \
-      -d '<json>' \
-      https://api.dnsimple.com/v1/domains/example.com/records/2
-*/
-func updateRecord(o options, ip string) error {
-	url := fmt.Sprintf("https://api.dnsimple.com/v1/domains/%s/records/%d", o.Domain, o.RecordID)
-	json := fmt.Sprintf(`{"record":{"content":"%s"}}`, ip)
-
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer([]byte(json)))
-	if err != nil {
-		return err
+func handleError(err error) {
+	if err == nil {
+		return
 	}
 
-	req.Header.Set("X-DNSimple-Token", fmt.Sprintf("%s:%s", o.Email, o.ApiToken))
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("DNSimple update request responded with %s", resp.Status)
-	}
-
-	return nil
+	log.Println(err)
+	os.Exit(1)
 }
 
 func main() {
-	var (
-		opts options
-		ip   string
-		err  error
-	)
-
-	handleError := func(err error) {
-		if err != nil {
-			log.Println(err)
-			os.Exit(1)
-		}
-	}
-
-	_, err = flags.Parse(&opts)
+	opts, err := parseOptions()
 	handleError(err)
 
-	ip, err = getIP()
+	ip, err := getIP()
 	handleError(err)
 
 	err = updateRecord(opts, ip)
 	handleError(err)
 
-	log.Println("DNSimple record updated successfully")
+	log.Printf("record %s for zone %s updated to %s\n", opts.record, opts.zone, ip)
+}
+
+func updateRecord(opts options, ip string) error {
+	url := fmt.Sprintf("https://api.dnsimple.com/v2/%s/zones/%s/records/%s", opts.account, opts.zone, opts.record)
+	body := fmt.Sprintf(`{"content":"%s"}`, ip)
+
+	req, err := http.NewRequest(http.MethodPatch, url, bytes.NewBuffer([]byte(body)))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", opts.token))
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		b, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("[%s] %s ", res.Status, string(b))
+	}
+
+	return nil
+}
+
+func getIP() (string, error) {
+
+	const url = "http://icanhazip.com/"
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.Trim(string(b), " \n"), nil
 }

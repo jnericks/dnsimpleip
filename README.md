@@ -1,4 +1,10 @@
-# DNSimple DNS A-Record Updater
+# DNSimple Dynamic DNS Record Updater
 
 ## Usage
-./dnsimpleip --email="email@mydomain.com" --token="v1-api-token" --domain="mydomain.com" --record=recordid
+./dnsimpleip -token "your-oauth-token" -account 12345 -zone "yourdomain.com" -record 1234567
+
+## Bash Script
+This was developed to be cross-platform (mostly to be used on a windows machine). There is a simplier bash script as seen here: https://developer.dnsimple.com/ddns/
+
+## OAuth Token
+Obtain a token by following the docs here: https://developer.dnsimple.com/v2/#authentication
